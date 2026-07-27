@@ -1,4 +1,4 @@
-# Population Activity of Mossy Fibre Axon Input to the Cerebellar Cortex during behaviours
+# MossyFibres
 
 ## Summary
 

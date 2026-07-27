@@ -12,7 +12,7 @@ function [varexp,dimmax,varmax] = get_dim(dFF,N_sub,D_max,acquisition_rate,frac_
     % Number random repeats, including both subsampling population &
     % subsampling time. 
     if nargin < 7 || isempty(N_reps)
-        N_reps = 10;
+        N_reps = 200;
     end
     
     %%
@@ -56,7 +56,7 @@ function [varexp,dimmax,varmax] = get_dim(dFF,N_sub,D_max,acquisition_rate,frac_
             train_ixs = block_shuffle_time(T,acquisition_rate);
             train_ixs = train_ixs(1:round(frac_T_train*T)); 
         else
-            train_ixs = randsample(T,frac_T_train*T);           
+            train_ixs = randsample(T,round(frac_T_train*T));           
         end
         
         % Randomly sample training population
@@ -64,12 +64,9 @@ function [varexp,dimmax,varmax] = get_dim(dFF,N_sub,D_max,acquisition_rate,frac_
         ix_y = setdiff(1:N_sub,ix_x)';
 
         Neuron_x = dFF_sub(ix_x,:);
-        size(Neuron_x)
         Neuron_y = dFF_sub(ix_y,:);
-        size(Neuron_y)
 
         [num_dim, ~,~,res,~,~] = peer_predict_dim(Neuron_x,Neuron_y,train_ixs,1:D_max);
-        
         varexp(k,:) = nanmean(res,1);
     end
     

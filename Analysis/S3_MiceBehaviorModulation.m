@@ -1,13 +1,18 @@
-clear all;close all; clc
-Initialize
-%%
-folder_names = {'Animal1', 'Animal2', 'Animal3', 'Animal4'};
-confile = dir(fullfile(data_home, 'concat_*.mat'));
+%This code is used to calculate the proportions of PM, NM, and NSM for each concatenated mouse, 
+%based on the bootstrapped correlation between activity and different behavior parameters.
+
+clear all;
+folderPath =  'X:\MFB\MFB_AH_2023\Correlation_data\4mice';
+
+mfbFolderPath = 'X:\MFB';
 currentDate = datestr(now, 'yyyy-mm-dd');
-savepath2 = fullfile(savepath, 'Figures\Supp.Figures\S3\', currentDate);
-if ~exist(savepath2, 'dir')
-    mkdir(savepath2);
+fp = fullfile(mfbFolderPath, 'Figures\Supp.Figures\S3\', currentDate);
+if ~exist(fp, 'dir')
+    mkdir(fp);
 end
+
+% Files
+files = dir(fullfile(folderPath, 'concat_*.mat'));
 
 % Color maps
 redToWhite = [linspace(1, 1, 128)', linspace(0, 1, 128)', linspace(0, 1, 128)'];
@@ -27,76 +32,76 @@ zc_wl = [];
 cc_pw = [];
 zc_pw = [];
 block_size = 100;
-
 for idx = 1:length(files)
     filePath = fullfile(folderPath, files(idx).name);
     load(filePath);
-
-    Nmf = Nmf + size(cc_MF_stat, 1);
+    dff_rz = (dff_r - nanmean(dff_r, 2)) ./ nanstd(dff_r, 0, 2);
+    cc_MF_all = corr(dff_rz', 'rows', 'complete');
+    cc_MF_stat = corr(dff_rz(:, L_state==0)', 'rows', 'complete');
+    cc_MF_run = corr(dff_rz(:, L_state==1)', 'rows', 'complete');
+    Nmf = Nmf + size(dff_rz, 1);
     all_cc_MF_stat = [all_cc_MF_stat; cc_MF_stat(tril(true(size(cc_MF_stat)), -1))];
     all_cc_MF_run = [all_cc_MF_run; cc_MF_run(tril(true(size(cc_MF_run)), -1))];
-
-    dff_rz = (dff_r - nanmean(dff_r, 2)) ./ nanstd(dff_r, 0, 2);
+    %[cc_0, zc_0] = bootstrap_cc(dff_rz', dis_R2_all', block_size, 100);
     %[cc_0, zc_0] = bootstrap_cc(dff_rz', MI_wheel_r', block_size, 100);
-    %[cc_0, zc_0] = bootstrap_cc(dff_rz', MI_whisk_r', block_size, 100);
-    [cc_0, zc_0] = bootstrap_cc(dff_rz', L_state', block_size, 100);
-
+    %[cc_0, zc_0] = bootstrap_cc(dff_rz', MI_whisker_r', block_size, 100);
+    [cc_0, zc_0] = bootstrap_cc(dff_rz', L_state', block_size, 200);
+    
     cc_wl=[cc_wl,cc_0];
     zc_wl=[zc_wl,zc_0];
-
+    
     figure;
     subplot(111);
     hold on;
-
     [y, x] = histcounts(cc_MF_stat(tril(true(size(cc_MF_stat)), -1)), 'Normalization', 'probability');
     dx = diff(x(1:2));
     xx = x(1:end-1) + dx / 2;
     plot(xx, y, 'LineWidth', 2, 'Color', [0.7, 0.7, 0.7]);
-
     [y, x] = histcounts(cc_MF_run(tril(true(size(cc_MF_run)), -1)), 'Normalization', 'probability');
     dx = diff(x(1:2));
     xx = x(1:end-1) + dx / 2;
     plot(xx, y, 'LineWidth', 2, 'Color', 'r');
-
     legend('QW', 'AS', 'Location', 'best');
     legend boxoff;
     xlabel('Pairwise corr.');
     ylabel('Probability');
-    set(gca, 'LineWidth', 1, 'FontSize', 20, 'TickDir', 'out');
-
-    fileName = ['Pairwise_corr_probability_' files(idx).name '.png'];
-    fullFilePath = fullfile(savepath2, fileName);
-    print(fullFilePath, '-dpng', '-r300');
-
-    figure('Position', [100, 100, 320, 270]);
-    subplot(111);
+    set(gca, 'LineWidth', 1, 'FontSize', 15, 'TickDir', 'out');
+    fileName = ['Pairwise_corr_probability_' files(idx).name];
+    fullFilePathPDF = fullfile(fp, [fileName,'.pdf']);
+    exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+    
+    figure('Position', [100, 100, 350, 300]);
+    subplot(111); 
     hold on;
     axis off;
-
+    
     sig_level = 2;
     pm_counts = nansum(zc_0 > sig_level);
     ns_counts = nansum(abs(zc_0) < sig_level);
     nm_counts = nansum(zc_0 < -sig_level);
-    h = pie([nm_counts, ns_counts, pm_counts], {'NM', 'NS', 'PM'});
-
+    
+    total_counts = pm_counts + ns_counts + nm_counts;
+    percentages = [nm_counts, ns_counts, pm_counts] / total_counts * 100;
+    
+    %labels = {'MFA⁻', 'MFA*', 'MFA⁺'};
+    
+    h = pie([nm_counts, ns_counts, pm_counts]);
     colormap([cl_off; cl_ns; cl_on]);
-    set(findobj(h, 'type', 'text'), 'fontsize', 20);
+    set(findobj(h, 'type', 'text'), 'fontsize', 18);
+    
+   
     axis image;
 
-    title({'Modulation (Loco)'}, 'fontsize', 20, 'fontweight', 'normal');
-
-    fileName = ['modLoc_' files(idx).name '__pie.png'];
-    fullFilePath = fullfile(savepath2, fileName);
-    print(fullFilePath, '-dpng', '-r300');
+    set(gca, 'Position', [0.13, 0.15, 0.6, 0.6]);
+    
+    fileName = ['modLoc_' files(idx).name '__pie'];
+    fullFilePathPDF = fullfile(fp, [fileName, '.pdf']);
+    exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 end
 
 
-filePath = fullfile([path_home '\preprocessing\Correlation data'], 'CorrLoco.mat');
-save(filePath, 'all_cc_MF_stat', 'all_cc_MF_run', 'cc_pw', 'cc_wl', 'zc_pw', 'zc_wl');
-
-%% pie fig. 2g
-
-figure('Position',[100,100,450,410])
+%% pie
+figure('Position',[100,100,400,350])
 subplot(111); hold on
 axis off
 
@@ -104,48 +109,41 @@ pm_counts = nansum(zc_wl>sig_level);
 ns_counts = nansum(abs(zc_wl)<sig_level);
 nm_counts = nansum(zc_wl<-sig_level);
 total_counts = pm_counts + ns_counts + nm_counts;
+percentages = [nm_counts, ns_counts, pm_counts] / total_counts * 100;
 
-h = pie([nm_counts, ns_counts, pm_counts], {'NM', 'NSM', 'PM'});
 
+labels = {sprintf('MFA⁻\n%.1f%%', percentages(1)), ...
+          sprintf('MFA*\n%.1f%%', percentages(2)), ...
+          sprintf('MFA⁺\n%.1f%%', percentages(3))};
+
+h = pie([nm_counts, ns_counts, pm_counts], labels);
 colormap([cl_off;cl_ns;cl_on]);
-
 set(findobj(h,'type','text'),'fontsize',18);
 
-percentages = [nm_counts, ns_counts, pm_counts] / total_counts * 100;
 textObjects = findobj(h,'Type','text');
-
 for i = 1:length(textObjects)
-    labelText = textObjects(i).String;
-    percentText = sprintf('%.1f%%', percentages(i));
-    
-    set(textObjects(i), 'String', {labelText; percentText});
-
     pos = get(textObjects(i), 'Position');
-    pos(2) = pos(2)+0.05; 
+    pos(2) = pos(2)+0.05;
     set(textObjects(i), 'Position', pos);
 end
 
 axis image;
 
-ht = title({'Modulation (Loco)'}, 'fontsize', 22, 'fontweight', 'normal');
-titlePos = get(ht, 'Position');
-newTitlePos = titlePos + [0, 0.3, 0]; %
-set(ht, 'Position', newTitlePos);
-
 set(gca, 'Position', [0.13, 0.15, 0.6, 0.6]);
+
 mfbFolderPath = 'X:\MFB';
 currentDate = datestr(now, 'yyyy-mm-dd');
-savepath2 = fullfile(mfbFolderPath, 'Figures\Supp.Figures\S3\', currentDate);
-if ~exist(savepath2, 'dir')
-    mkdir(savepath2);
+fp = fullfile(mfbFolderPath, 'Figures\Supp.Figures\S3\', currentDate);
+if ~exist(fp, 'dir')
+    mkdir(fp);
 end
 
-fileName = ['modLoc_allMice__pie.png'];
-fullFilePath = fullfile(savepath2, fileName);
-print(fullFilePath, '-dpng', '-r300');
+fileName = ['modLoc_allMice__pie'];
+fullFilePathPDF = fullfile(fp, [fileName,'.pdf']);
+exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
 
-%% -('Corr. with AS') 
+% -('Corr. with AS') 
 
 db = .1/2;
 bins = [-1-db/2:db:1+db/2];
@@ -164,7 +162,7 @@ xlim([-1,1]);
 set(gca, 'LineWidth', 1, 'FontSize', 15)
 
 fileName = ['Corr with AS.png'];
-fullFilePath = fullfile(savepath2, fileName);
+fullFilePath = fullfile(fp, fileName);
 print(fullFilePath, '-dpng', '-r300');
 
 h = figure('Position',[100,100,300,250]); hold on;
@@ -189,11 +187,11 @@ ylabel('# MFAs')
 set(gca, 'LineWidth', 1, 'FontSize', 15)
 
 fileName = ['Bootstrapped Corr_all'];
-fullFilePath = fullfile(savepath2, fileName);
-print(fullFilePath, '-dpng', '-r300');
+fullFilePathPDF = fullfile(fp, [fileName,'.pdf']);
+exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
-%%
-figure('Position',[100,100,400,350])
+
+figure('Position',[100,100,300,250])
 subplot(111)
 hold on
 
@@ -213,8 +211,8 @@ legend boxoff
 
 xlabel('Pairwise corr.')
 ylabel('Probability')
-set(gca, 'LineWidth', 1, 'FontSize', 20, 'TickDir', 'out','box','off')
+set(gca, 'LineWidth', 1, 'FontSize', 15, 'TickDir', 'out','box','off')
 
 fileName = ['Pairwise corr_probability'];
-fullFilePath = fullfile(savepath2, fileName);
-print(fullFilePath, '-dpng', '-r300');
+fullFilePathPDF = fullfile(fp, [fileName,'.pdf']);
+exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');

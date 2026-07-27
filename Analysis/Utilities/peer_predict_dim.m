@@ -1,4 +1,4 @@
-function [ num_dim, Test_t, y_est, res, U_x, U_y, y_est_train, res_train ] = peer_predict_dim(Neuron_x, Neuron_y, train_ind, num_dim )
+function [ num_dim, Test_t, y_est, res, U_x, U_y, y_est_train, res_train ] = peer_predict_dim(Neuron_x, Neuron_y, train_ixs, num_dim )
 %% Dimensionality estimation by Cross-validation for Peer Prediction
 % Inputs:
 %
@@ -31,6 +31,7 @@ function [ num_dim, Test_t, y_est, res, U_x, U_y, y_est_train, res_train ] = pee
 %   08-10-2018
 
 % Modified by Alex 2019/07/01
+% Modified by Yizhou 2025/8/29
 
 %   Logic of the code:
 %   F_1 = [F_x1; F_y1] = Activity in training half
@@ -48,27 +49,27 @@ function [ num_dim, Test_t, y_est, res, U_x, U_y, y_est_train, res_train ] = pee
 %       and calculate estimate for F_y2 as in eq2.
 %       If we only take k columns of U, we get a k-rank approx.
 
-    [nX, nT] = size( Neuron_x);
+    [nX, nT] = size(Neuron_x);
     [nY, nT2] = size(Neuron_y);
     if nT ~= nT2, error( 'Neuron_x and Neuron_y must have same number of timepoints'); end
        
     % ugly indexing
     allT = 1: nT; Train_t = false( 1, nT ); Test_t = true( 1, nT );
-    if isempty(train_ind)
+    if isempty(train_ixs)
         disp('No value given for training timepoints. Using first half of the array as training data')
-        train_ind = 1:floor(nT/2);
+        train_ixs = 1:floor(nT/2);
     end
-    Train_t( train_ind ) = true;
-    Test_t( train_ind ) = false;
-    
-    x_train = Neuron_x(:, Train_t); x_test = Neuron_x( :, Test_t);
-    y_train = Neuron_y(:, Train_t); y_test = Neuron_y( :, Test_t);
+    Train_t( train_ixs ) = true;
+    Test_t( train_ixs ) = false;
+
+    x_train = Neuron_x(:, Train_t); x_test = Neuron_x(:, Test_t);
+    y_train = Neuron_y(:, Train_t); y_test = Neuron_y(:, Test_t);
     
     % Estimate component directions
     [U, ~, ~] = svd( [x_train; y_train], 'econ' );
-    U_x = U(1:nX,:);    U_y = U(nX+1:end,:);
-    
-    
+    U_x = U(1:nX,:);    
+    U_y = U(nX+1:end,:);
+
     % Predict for different subspaces of the decomposition
     if isempty(num_dim)
         num_dim = 1:size(U_x,2); 
@@ -79,18 +80,25 @@ function [ num_dim, Test_t, y_est, res, U_x, U_y, y_est_train, res_train ] = pee
     end
     [y_est_train, y_est] = deal(cell( nIters, 1)); 
     [res, res_train] = deal(nan( nY, nIters));
+
     
     jj = 1; stop = 0;
+
     while jj <= nIters && stop == 0
         ndim = num_dim(jj);
-        y_est{jj} = U_y(:, 1:ndim) * ( U_x(:, 1:ndim) / (U_x(:, 1:ndim)'*U_x(:, 1:ndim)) )' * x_test;
+        %
+        y_est{jj} = U_y(:, 1:ndim) * ( U_x(:, 1:ndim) / (U_x(:, 1:ndim)'*U_x(:, 1:ndim)) )' * x_test; % 
+        %y_est{jj} = U_y(:, 1:ndim) * pinv(U_x(:,1:ndim))* x_test;
+
         y_est_train{jj}  = U_y(:, 1:ndim) * ( U_x(:, 1:ndim) / (U_x(:, 1:ndim)'*U_x(:, 1:ndim)) )' * x_train;
         res(1:nY, jj) = 1 - (var( y_test-y_est{jj}, [],2))./var(y_test,[],2);
         res_train(1:nY, jj) = 1 - (var( y_train-y_est_train{jj}, [],2))./var(y_train,[],2);
-        if mean(res_train(:,jj)) < 0
+
+        if mean(res_train(:,jj)) < 0.001
             stop = 1;
         end
-        jj = jj + 1;
+         jj = jj + 1;
+
     end
     
     

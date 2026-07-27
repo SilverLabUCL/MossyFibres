@@ -1,6 +1,6 @@
 % This script performs alignment analysis on neural activity signals and behavior (running state) 
 % in multiple sessions.
-
+clear all;
 ColorCodes;
 
 folder_names = {
@@ -29,9 +29,20 @@ all_ccd = [];
 all_l_max_PM = [];
 all_l_min_NM = [];
 
-for ij = 1:length(folder_names)
-    file = char(folder_names(ij));
-    quickAnalysis;
+savepath ='X:\MFB';
+datapath = 'X:\MFB\Processed\all_data';
+file_list = dir(fullfile(datapath, '*.mat'));
+
+for ij = [1,2,6,15]
+  
+   current_file = fullfile(datapath, file_list(ij).name);
+    
+   load(current_file);
+   file = mf.info.file;
+    
+   dff_r = mf.c.dff_r;
+    dff_rz = zscore(dff_r')';
+    L_state = mf.b.L_state;
 
     prefix = [];
 
@@ -95,6 +106,7 @@ for ij = 1:length(folder_names)
             hold on
 
             if cnt == MF_no+1
+                whl_rs = fastsmooth(reshape(mf.b.dis_R2', 1, []), 100, 3, 1);
                 z1 = whl_rs(tids1);
                 z2 = whl_rs(tids2);
 
@@ -109,11 +121,30 @@ for ij = 1:length(folder_names)
                 plot(tt1, zsr(tids1) * .3, 'r-', 'LineWidth', 1.5);
                 plot(tt2, zsr(tids2) * .23, 'r-', 'LineWidth', 1.5);
 
-                plot([0, 0], 1 + [0, .5], 'k-', 'LineWidth', 2)
-                text(0.5, 5, '.5 MI', 'FontSize', 15)
+y0_temp = nanmin([z1, z2]);
+yf_temp = nanmax([z1, z2]);
+y_range = yf_temp - y0_temp;
+x_range = max(tt1) - min(tt1);
 
-                plot([0, 0+5], [0.2, .2], 'k-', 'LineWidth', 2);
-                text(2, 0.05, '5 s', 'FontSize', 12)
+scale_y_start = y0_temp - 0.5;
+scale_y_length = 0.5;
+scale_x_pos = min(tt1) + 0.08 * x_range;
+
+plot([scale_x_pos, scale_x_pos], ...
+     [scale_y_start, scale_y_start + scale_y_length], ...
+     'k-', 'LineWidth', 2)
+text(-3.5, 7,'0.5 MI', 'FontSize', 12, 'VerticalAlignment', 'bottom')
+
+scale_x_start = min(tt1) + 0.08 * x_range;
+scale_x_length = 5;
+scale_y_pos = y0_temp +10;
+
+plot([scale_x_start, scale_x_start + scale_x_length], ...
+     [scale_y_pos, scale_y_pos], ...
+     'k-', 'LineWidth', 2);
+text(scale_x_start + scale_x_length/2, ...
+     scale_y_pos +15, ...
+     '5 s', 'FontSize', 12, 'HorizontalAlignment', 'center')
             else
                 mfid = MF_id(cnt);
                 z1 = act1(mfid, :);
@@ -125,7 +156,7 @@ for ij = 1:length(folder_names)
                 plot(tt2, z2, 'color', cl, 'LineWidth', lw);
 
                 if cnt == 1 
-                    text(-3.5, 6, '20%', 'fontsize', 12);
+                    text(-3.5, 7, '20%', 'fontsize', 12);
                     text(-4, 4, '\DeltaF/F', 'fontsize', 12);
                 end
             end
@@ -168,6 +199,7 @@ for ij = 1:length(folder_names)
                 cnt = cnt + 1;
                 mfid = MF_id(i);
                 zz = dff_r(mfid, :);
+                whl_r = mf.b.dis_R2;
                 nnids = logical(~isnan(zz) .* ~isnan(whl_r));
                 [r, l] = xcorr(zz(nnids), whl_r(nnids), 'normalized');
 
@@ -207,6 +239,7 @@ for ij = 1:length(folder_names)
     if plot_cross_corr_allMFs
         calculate = 1;
         if calculate
+            Nmf = size(dff_r,1);
             ccd = zeros(1, Nmf);
             l_max = zeros(1, Nmf);
             l_min = zeros(1, Nmf);
@@ -256,7 +289,7 @@ for ij = 1:length(folder_names)
         set(gca, 'LineWidth', 1, 'FontSize', fs, 'TickDir', 'out', 'TickLength', [.02, .02])
 
         % print
-        fileName = [prefix 'runAligned_xcorr_quant_example'];
+        fileName = [prefix 'runAligned_xcorr_quant_example' char(file)];
         fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
         exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
     end
@@ -268,11 +301,11 @@ ColorCodes
 folder_names = {
     '171212_16_19_37'
     '191018_13_39_41';
-    '191018_13_56_55';
+    %'191018_13_56_55';
     '191018_14_30_00';
-    '191018_14_11_33';
+    %'191018_14_11_33';
     '200130_13_21_13 FunctAcq';
-    '200130_13_36_14 FunctAcq';
+    %'200130_13_36_14 FunctAcq';
     '200130_13_49_09 FunctAcq';
     '200130_14_15_24 FunctAcq';
     '200130_14_29_30 FunctAcq';
@@ -314,15 +347,12 @@ for file_i = 1:length(folder_names)
     tis_after = [run_onset(index) : run_onset(index)+round(t_ext_aft/dt)];
     
     if ~all(L_state == 0)
-        [cc_wL, zc_wL] = bootstrap_cc(dff_rz', L_state', 100, 40);
+        [cc_wL, zc_wL] = bootstrap_cc(dff_rz', L_state', 100, 100);
     else
         continue
     end
     
-    zth = 3;    
-    if strcmp(file, '191018_14_11_33')  % reduce bias
-        zth = 2;
-    end
+    zth = 2;    
     
     zids = find(abs(zc_wL) > zth);
     zids_PM = find(zc_wL > zth);
@@ -334,8 +364,7 @@ for file_i = 1:length(folder_names)
     NM_val = zc_wL(zids_NM);
     [sorted_NM_val, sorted_NM] = sort(NM_val, 'ascend');
     zids_NM = zids_NM(sorted_NM);
-    
-    std_th = 3;
+
     Ntot = size(dff_rz, 1);
     
     % get PM peak latency 

@@ -1,667 +1,776 @@
-clear all; close all; clc
-%% all folders
+clear all;close all;clc
+
+
+concat_folder = 'X:\MFB\MFB_AH_2023\Correlation_data\4mice';
+confiles = dir(fullfile(concat_folder, 'concat_*.mat'));
+
 folder_names = {
-   '171212_16_19_37';
-   '191018_13_39_41';
-   %'191018_13_56_55'; % sessions are removed due to no beh
-   '191018_14_30_00';
-   %'191018_14_11_33';
-   '191209_13_44_12';
-   %'191209_14_04_14';
-   '191209_14_32_39';
-   '191209_15_01_22'; % No loco,state, but good whisker  
-   '191209_14_18_13';
-   '191209_14_46_58';
-   '200130_13_21_13 FunctAcq';
-   '200130_13_36_14 FunctAcq';
-   '200130_13_49_09 FunctAcq';
-   %'200130_14_02_12 FunctAcq';
-   '200130_14_15_24 FunctAcq';
-   '200130_14_29_30 FunctAcq';
-    };
+    'Animal1';
+    'Animal2';
+    'Animal3';
+    'Animal4';
+};
 
-savepath = 'X:\MFB';
-%% get beta for each MF
+%% fig. 6a  
+file = '191209_13_44_12';
+quickAnalysis;
 
-plot_decode_all_MF = 1;
+Xall = xyz(:,1);
+Yall = xyz(:,2);
+Zall = xyz(:,3);
 
-if plot_decode_all_MF == 1
+block_size = 100;
+dff1 = dff0;
+Nmf1 = length(xyz);
+dff_r = reshape(permute(dff1, [1,3,2]), Nmf1, []);
+dff_rz = (dff_r - nanmean(dff_r')') ./ nanstd(dff_r')';
 
-    beta_loco_all_files = {};
-    beta_wsk_all_files = {};
-    beta_state_all_files = {};
-    beta_loco_sorted_indices_all = {}; 
-    beta_wsk_sorted_indices_all = {}; 
-    beta_state_sorted_indices_all = {};
+[cc_wL, zc_wL] = bootstrap_cc(dff_rz', L_state', block_size, 300);
 
-    cvev_loco_all_files = {};
-    cvev_wsk_all_files = {};
-    cvev_state_all_files = {};
+sig_level = 2;
 
-    for file_i = 1:length(folder_names)
-        file = char(folder_names(file_i));
-        quickAnalysis;
-        Y_loco = MI_wheel_r';
-        Y_wsk = MI_whisker_r';
-        Y_state = L_state';
-        X = dff_rz';
+pids = find(zc_wL > sig_level);
+nids = find(zc_wL < -sig_lev);
+nsids = find(abs(zc_wL) < sig_level);
 
-        Y_loco = Y_loco(valid_t);
-        Y_wsk = Y_wsk(valid_t);
-        Y_state = Y_state(valid_t);
-        X = X(valid_t, :);
-        
-        Xtrain = X(:, :) - mean(X(:, :));
-        Xtrain2 = zscore(X);
-        [Ytrain_loco_z, ~, ~] = zscore(Y_loco);
-        [Ytrain_wsk_z, ~, ~] = zscore(Y_wsk); 
-        Ytrain_state = Y_state;
+figure('Position',[360, 278, 900, 900]*.5)
+hold on; rotate3d on;
+grid on;
 
-        lambda = 0.1;
-        beta_loco_i = ridge(Ytrain_loco_z, Xtrain, lambda, 0);
-        beta_wsk = ridge(Ytrain_wsk_z, Xtrain, lambda, 0);
-        beta_state = ridge(Ytrain_state, Xtrain, lambda, 0);
+pids = logical(zc_wL>sig_lev);
+nids = logical(zc_wL<-sig_lev);
+nsids = logical(abs(zc_wL)<sig_lev);
 
-        [~, sorted_indices_loco] = sort(beta_loco_i(2:end), 'descend');
-        [~, sorted_indices_wsk] = sort(beta_wsk(2:end), 'descend');
-        [~, sorted_indices_state] = sort(beta_state(2:end), 'descend');
+h1 = scatter3(Xall(pids), Yall(pids), Zall(pids), 20, 'r', 'LineWidth', 2);
+h2 = scatter3(Xall(nids), Yall(nids), Zall(nids), 20, 'b', 'LineWidth', 2);
+h3 = scatter3(Xall(nsids), Yall(nsids), Zall(nsids), 20, 'MarkerEdgeColor', [0.3 0.3 0.3],'LineWidth', 2);
 
-        beta_loco_all_files{file_i} = beta_loco_i;
-        beta_wsk_all_files{file_i} = beta_wsk;
-        beta_state_all_files{file_i} = beta_state;
-        beta_loco_sorted_indices_all{file_i} = sorted_indices_loco;
-        beta_wsk_sorted_indices_all{file_i} = sorted_indices_wsk;
-        beta_state_sorted_indices_all{file_i} = sorted_indices_state;
+legend([h1,h2,h3], {'MFB+', 'MFB-', 'MFB*'}, 'Location','northwest')
+legend boxoff
 
-    end
+xyz_mx = [250,250, max(Zall)];
+xyz_mn = [0,0, min(Zall)];
+xlim([0,xyz_mx(1)]);
+ylim([0,xyz_mx(2)]);
+zlim([xyz_mn(3)-10,xyz_mx(3)+10]);
+zticks([-100, -80, -60, -40, -20, 0]);
+xlabel('X (μm)'); ylabel('Y (μm)'); zlabel('Z (μm)');
+view(-28,28);
 
-    fileName = 'Sorted_Beta.mat';
-    fullPath = fullfile([savepath '\decode'], fileName);
-    save(fullPath, 'beta_loco_all_files', 'beta_wsk_all_files', 'beta_state_all_files', ...
-        'beta_loco_sorted_indices_all', 'beta_wsk_sorted_indices_all' ,'beta_state_sorted_indices_all');
-end
-
-
-%% Find optimal MFs by lasso
-plot_decode_all_MF=1;
-
-for file_i = 1:length(folder_names)
-    
-    file=char(folder_names(file_i));
-    quickAnalysis;
-
-    Y = MI_wheel_r';
-    Y2 = MI_whisker_r';
-    Y3 = L_state';
-    X = dff_rz';
-
-    Y= Y(valid_t);
-    Y2= Y2(valid_t);
-    Y3= Y3(valid_t);
-    X= X(valid_t, :);
-    L_state = L_state(valid_t);
-
-    X_n_loco = X;
-    X_n_wsk = X;
-    X_n_state = X; 
-
-    lambda = 1e-3:1e-4:0.05;
-    [B_loco, FitInfo_loco] = lasso(X_n_loco, Y, 'Lambda',lambda,'CV', 10);
-    c_Min = B_loco(:, FitInfo_loco.Index1SE);
-    if sum(c_Min ~= 0) >0
-        num_MF_loco(file_i) = sum(c_Min ~= 0);
-    else
-        num_MF_loco(file_i) = nan;
-    end
-
-    [B_wsk, FitInfo_wsk] = lasso(X_n_wsk, Y2, 'Lambda',lambda,'CV', 10);
-    c_Min = B_wsk(:, FitInfo_wsk.Index1SE);
-    if sum(c_Min ~= 0) >0
-        num_MF_wsk(file_i) = sum(c_Min ~= 0);
-    else
-        num_MF_wsk(file_i) = nan;
-    end
-
-    [B_state, FitInfo_state] = lasso(X_n_state, Y3, 'Lambda',lambda,'CV', 10); 
-    c_Min = B_state(:, FitInfo_state.Index1SE);
-    if sum(c_Min ~= 0) >0
-        num_MF_state(file_i) = sum(c_Min ~= 0);
-    else
-        num_MF_state(file_i) = nan;
-    end
-
-end
-
-save([savepath '\decode\Best_MFs_num.mat'], "num_MF_state","num_MF_loco","num_MF_wsk");
-
-
-%% plot traces
-k = 4;
-set(figure, 'Position', [400, 100, 500, 290]);
-% Plot Loco Actual
-cell1 = Actual_loco_all{k}{end};
-minL = min(cellfun(@(x) numel(x), cell1));
-Data = zeros(minL, numel(cell1));
-for i = 1:numel(cell1)
-    Data(:, i) = cell1{i}(1:minL);
-end
-average_test = mean(Data, 2);
-
-subplot(6, 1, 1);
-h1 = plot(average_test, 'color',[0.6,0.6,0.6],'LineWidth',1);
-box('off')
-axis off;
-
-disp(Cvev_loco{k}(1:5))  
-
-for plot_i=1:5  
-cell2 = Decode_loco_all{k}{plot_i};
-minL = min(cellfun(@(x) numel(x), cell2));
-Data = zeros(minL, numel(cell2));
-for i = 1:numel(cell2)
-    Data(:, i) = cell2{i}(1:minL);
-end
-    average_pred = mean(Data, 2);
-    
-    subplot(6, 1, plot_i+1);
-    h2 = plot(average_pred,'color',[173,210,157]/255,'LineWidth',1);
-    box('off')
-    axis off;
-end
-
-xlabel('Time');
-ylabel('Corr')
-ax = gca;
-xlims = ax.XLim;
-ylims = ax.YLim;
-x0 = xlims(2) - 1000; % 10s
-y0 = ylims(1); %
-
-hold on
-plot(ax, [x0, x0+1000], [y0, y0], 'k-', 'LineWidth', 3);
-text(ax, x0, y0 - diff(ylims) * 0.2, '10 s', 'FontSize', 13, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top');
+set(gca, 'LineWidth', 1, 'FontSize', 18, ...
+    'FontName'   , 'Helvetica', ...
+    'Box'         , 'off'     , ...
+    'TickDir'     , 'out'     , ...
+    'TickLength'  , [.02 .02] , ...
+    'XMinorTick'  , 'off'      , ...
+    'YMinorTick'  , 'off'   , ...
+    'ZMinorTick'  , 'off'  )
 
 currentDate = datestr(now, 'yyyy-mm-dd');
-savepath2 = fullfile(savepath, 'Figures', 'Figure5', currentDate);
+savepath2 = fullfile(savepath, 'Figures', 'Figure6', currentDate);
 if ~exist(savepath2, 'dir')
     mkdir(savepath2);
 end
-fileName = [ 'Ridge_Loco_' folder_names{k} '_MF#'];
+fileName = ['Spatial_example_locomotion'];
 fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
 exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
+%% fig.6b PM vs NM spatial distribution (permutation test + ECDF, per animal)
 
-% Plot Wsk
-set(figure, 'Position', [400, 100, 500, 290]);
+file_names = {
+    '171212_16_19_37';
+    '191018_13_39_41';
+    '191209_13_44_12';
+    '200130_14_15_24 FunctAcq';
+};
+sig_level  = 2;
+n_shuffles = 10000;
+dim_names  = {'X', 'Y', 'Z'};
+n_animals  = length(file_names);
 
-% Plot whisk Actual
-cell1=Actual_whisk_all{k}{end};
-minL = min(cellfun(@(x) numel(x), cell1));
-Data = zeros(minL, numel(cell1));
-for i = 1:numel(cell1)
-    Data(:, i) = cell1{i}(1:minL);
-end
-average_test = mean(Data, 2);
+% Colormap for MFB+ / MFB-
+redToWhite  = [linspace(1, 1, 128)', linspace(0, 1, 128)', linspace(0, 1, 128)'];
+whiteToBlue = [linspace(1, 0, 128)', linspace(1, 0, 128)', linspace(1, 1, 128)'];
+mycm   = flipud([redToWhite; whiteToBlue]);
+cl_on  = mycm(256 - 40, :);  % MFB+
+cl_off = mycm(40, :);         % MFB-
 
-subplot(6, 1, 1);
-h1=plot(average_test, 'color',[0.6,0.6,0.6],'LineWidth',1);
-box('off')
-axis off;
+% Results table and storage for coordinates
+perm_results = table('Size', [n_animals, 6], ...
+    'VariableTypes', {'string', 'double', 'double', 'double', 'double', 'double'}, ...
+    'VariableNames', {'File', 'nPM', 'nNM', 'P_X', 'P_Y', 'P_Z'});
+xyz_pm = cell(n_animals, 1);
+xyz_nm = cell(n_animals, 1);
 
-disp(Cvev_wsk{k}(1:5))  
-for plot_i=1:5
-cell2=Decode_whisk_all{k}{plot_i};
-minL = min(cellfun(@(x) numel(x), cell2));
-Data = zeros(minL, numel(cell2));
-for i = 1:numel(cell2)
-    Data(:, i) = cell2{i}(1:minL);
-end
-average_pred = mean(Data, 2);
-subplot(6, 1, plot_i+1);
-h2=plot(average_pred,'color',[255,163,26]/255,'LineWidth',1);
-box('off')
-axis off;
-end
+% ===== Pass 1: load data, run permutation tests =====
+rng(42);
+for iii = 1:n_animals
+    file = file_names{iii};
+    fprintf('Processing %s...\n', file);
+    quickAnalysis;
+    close all;  % close figures opened by quickAnalysis
+    [~, zc_wL] = bootstrap_cc(dff0_rz', L_state', 100, 300);
 
-xlabel('Time');
-ylabel('Corr')
-ax = gca;
-xlims = ax.XLim;
-ylims = ax.YLim;
-x0 = xlims(2) - 1000; % 10s
-y0 = ylims(1);
+    pm_idx = find(zc_wL >  sig_level);
+    nm_idx = find(zc_wL < -sig_level);
 
-hold on
-plot(ax, [x0, x0+1000], [y0, y0], 'k-', 'LineWidth', 3);
-text(ax, x0, y0 - diff(ylims) * 0.2, '10 s', 'FontSize', 13, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top');
+    xyz_pm{iii} = xyz(pm_idx, :);
+    xyz_nm{iii} = xyz(nm_idx, :);
 
-fileName = [ 'Ridge_whisk_' folder_names{k} '_MF#'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+    perm_results.File(iii) = string(file);
+    perm_results.nPM(iii)  = length(pm_idx);
+    perm_results.nNM(iii)  = length(nm_idx);
 
-% Plot States
-set(figure, 'Position', [400, 100, 500, 290]);
+    for d = 1:3
+        pos_pm = xyz(pm_idx, d);
+        pos_nm = xyz(nm_idx, d);
 
-% Plot state Actual
-cell1=Actual_state_all{k}{end};
-minL = min(cellfun(@(x) numel(x), cell1));
-Data = zeros(minL, numel(cell1));
-for i = 1:numel(cell1)
-    Data(:, i) = cell1{i}(1:minL);
-end
-average_test = cell1{i};
+        [~, ~, d_obs] = kstest2(pos_pm, pos_nm);
+        pool    = [pos_pm; pos_nm];
+        n_pm    = length(pos_pm);
+        d_shuff = zeros(n_shuffles, 1);
+        for s = 1:n_shuffles
+            r = randperm(length(pool));
+            [~, ~, d_shuff(s)] = kstest2(pool(r(1:n_pm)), pool(r(n_pm+1:end)));
+        end
+        p_perm = sum(d_shuff >= d_obs) / n_shuffles;
 
-subplot(6, 1, 1);
-h1=plot(average_test, 'color',[0.6,0.6,0.6],'LineWidth',1);
-box('off')
-axis off;
-disp(Cvev_state{k}(1:5))
-for plot_i=1:5
-cell2=Decode_state_all{k}{plot_i};
-
-minL = min(cellfun(@(x) numel(x), cell2));
-Data = zeros(minL, numel(cell2));
-for i = 1:numel(cell2)
-    Data(:, i) = cell2{i}(1:minL);
-end
-average_pred = mean(Data, 2);
-
-subplot(6, 1, plot_i+1);
-h2=plot(average_pred,'color',[255,53,255]/255,'LineWidth',1);
-box('off')
-axis off;
-end
-
-xlabel('Time');
-ylabel('Corr')
-ax = gca;
-xlims = ax.XLim;
-ylims = ax.YLim;
-x0 = xlims(2) - 1000; % 10s
-y0 = ylims(1);
-
-hold on
-plot(ax, [x0, x0+1000], [y0, y0], 'k-', 'LineWidth', 3);
-text(ax, x0, y0 - diff(ylims) * 0.2, '10 s', 'FontSize', 13, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top');
-
-fileName = [ 'Ridge_state_' folder_names{k} '_MF#'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-
-%% fig. 6b
-
-load('X:\MFB\MFB_AH_2023\Correlation_data\decode\results_all_MF_sorted_beta.mat')
-figure('Position', [400,100,450,350]);
-for i=1:length(Cvev_loco)
-    if i==6
-        continue
+        switch d
+            case 1, perm_results.P_X(iii) = p_perm;
+            case 2, perm_results.P_Y(iii) = p_perm;
+            case 3, perm_results.P_Z(iii) = p_perm;
+        end
     end
-    cell_data = Cvev_loco{i};
+    fprintf('  P: X=%.4f, Y=%.4f, Z=%.4f\n', ...
+        perm_results.P_X(iii), perm_results.P_Y(iii), perm_results.P_Z(iii));
+end
 
-    modes = 1:length(cell_data);
+disp('--- Permutation test results (MFB+ vs MFB-, 10000 shuffles) ---');
+disp(perm_results);
 
+% ===== Pass 2: plot all results in one figure =====
+figure('Position', [50, 50, 1100, 500]);
+
+for iii = 1:n_animals
+    p_vals = [perm_results.P_X(iii), perm_results.P_Y(iii), perm_results.P_Z(iii)];
+
+    for d = 1:3
+        sp_idx = (d - 1) * n_animals + iii;
+        subplot(3, n_animals, sp_idx); hold on;
+
+        [f_pm, x_pm] = ecdf(xyz_pm{iii}(:, d));
+        [f_nm, x_nm] = ecdf(xyz_nm{iii}(:, d));
+        plot(x_pm, f_pm, '-', 'Color', cl_on,  'LineWidth', 2);
+        plot(x_nm, f_nm, '-', 'Color', cl_off, 'LineWidth', 2);
+
+        % Permutation p value
+        p_perm = p_vals(d);
+        if p_perm == 0
+            p_str = sprintf('p<%.2f', 1/n_shuffles);
+        elseif p_perm < 0.01
+            p_str = 'p<0.01';
+        else
+            p_str = sprintf('p=%.2f', p_perm);
+        end
+        text(0.95, 0.05, p_str, 'Units', 'normalized', ...
+            'FontSize', 14, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'right');
+
+        if d == 1
+            title(sprintf('Animal %d', iii), 'FontSize', 18);
+        end
+        if iii == 1
+            ylabel(dim_names{d}, 'FontSize', 18);
+        end
+        if d == 3
+            xlabel('Position (μm)', 'FontSize', 18);
+        end
+        if d == 1 && iii == n_animals
+            h1 = plot(nan, nan, '-', 'Color', cl_on,  'LineWidth', 2);
+            h2 = plot(nan, nan, '-', 'Color', cl_off, 'LineWidth', 2);
+            legend([h1, h2], {'MFB+', 'MFB-'}, 'Location', 'best', 'FontSize', 14);
+            legend box off;
+        end
+
+        set(gca, 'LineWidth', 1, 'FontSize', 18, ...
+            'FontName'   , 'Helvetica', ...
+            'Box'         , 'off'     , ...
+            'TickDir'     , 'out'     , ...
+            'TickLength'  , [.02 .02] );
+        hold off;
+    end
+end
+
+fileName = 'PMNMXYZ_ECDF';
+fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+
+% ===== Pass 3: pooled histogram (all animals, X/Y/Z) =====
+% Concatenate across animals
+all_pm = cat(1, xyz_pm{:});
+all_nm = cat(1, xyz_nm{:});
+
+figure('Position', [50, 50, 400, 500]);
+
+for d = 1:3
+    subplot(3, 1, d); hold on;
+
+    % Determine shared bin edges
+    all_vals = [all_pm(:, d); all_nm(:, d)];
+    edges = linspace(min(all_vals), max(all_vals), 25);
+
+    h1 = histogram(all_pm(:, d), edges, 'FaceColor', cl_on,  'EdgeColor', 'none', 'FaceAlpha', 0.6);
+    h2 = histogram(all_nm(:, d), edges, 'FaceColor', cl_off, 'EdgeColor', 'none', 'FaceAlpha', 0.6);
+
+    ylabel('Count', 'FontSize', 18);
+    if d == 3
+        xlabel('Position (μm)', 'FontSize', 18);
+    end
+    if d == 1
+        lg = legend([h1, h2], {'MFB+', 'MFB-'}, 'Location', 'best', 'FontSize', 14);
+        lg.Box = 'off';
+        lg.ItemTokenSize = [15, 10];
+    end
+    title(dim_names{d}, 'FontSize', 18);
+
+    set(gca, 'LineWidth', 1, 'FontSize', 18, ...
+        'FontName'   , 'Helvetica', ...
+        'Box'         , 'off'     , ...
+        'TickDir'     , 'out'     , ...
+        'TickLength'  , [.02 .02] );
+    hold off;
+end
+
+fileName = 'PMNMXYZ_Hist_pooled';
+fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+
+%% fig 6c.Ripley function analysis
+
+% Parameters
+sig_level  = 2.0;
+fov_size   = [250, 250];
+N_perm     = 1000;
+cell_types = {'PM', 'NM', 'NSM'};
+type_colors = [1.0000  0.3150  0.3150;
+               0.3071  0.3071  1.0000;
+               0.7000  0.7000  0.7000];
+
+% Containers: store full permutation matrices for correct CI
+all_L_obs     = struct('PM', {{}}, 'NM', {{}}, 'NSM', {{}});
+all_L_perm    = struct('PM', {{}}, 'NM', {{}}, 'NSM', {{}});
+all_weights   = struct('PM', {{}}, 'NM', {{}}, 'NSM', {{}});
+r_ref = [];
+
+rng(42);
+
+% File loop
+for file_i = 1:length(confiles)
+    file     = folder_names{file_i};
+    filePath = fullfile(concat_folder, confiles(file_i).name);
+
+    fprintf('\n=== File %d/%d: %s ===\n', file_i, length(confiles), file);
+
+    load(filePath);
+
+    if ~exist('dff_r0_all','var') || ~exist('xyz','var') || ~exist('L_state','var')
+        warning('Missing required variables, skipping.');
+        continue;
+    end
+
+    % Compute correlation-based classification
+    dff_r  = dff_r0_all;
+    dff_rz = (dff_r - nanmean(dff_r, 2)) ./ nanstd(dff_r, 0, 2);
+    [cc_wL, zc_wL] = bootstrap_cc(dff_rz', L_state', 100, 300);
+
+    pm_idx  = find(zc_wL >  sig_level);
+    nm_idx  = find(zc_wL < -sig_level);
+    nsm_idx = find(abs(zc_wL) < sig_level);
+    idx_sets = {pm_idx, nm_idx, nsm_idx};
+
+    % Analyze per z-layer
+    z_vals = xyz(:, 3);
+    layers = unique(z_vals);
+
+    for li = 1:length(layers)
+        z_now     = layers(li);
+        layer_idx = find(z_vals == z_now);
+
+        for ct = 1:3
+            idx_in_layer = intersect(layer_idx, idx_sets{ct});
+            n_pts = length(idx_in_layer);
+
+            if n_pts < 10 || length(layer_idx) < n_pts + 2
+                continue;
+            end
+
+            xy_obs = xyz(idx_in_layer, 1:2);
+
+            % Observed L(r)
+            try
+                [r_vals, ~, L_obs] = ripleyKL2D(xy_obs, 0, fov_size);
+                if isempty(r_ref), r_ref = r_vals; end
+            catch
+                continue;
+            end
+
+            % Null distribution: randomly sample n_pts from same layer
+            L_perm = zeros(N_perm, length(r_vals));
+            for p = 1:N_perm
+                rand_idx = layer_idx(randperm(length(layer_idx), n_pts));
+                xy_rand  = xyz(rand_idx, 1:2);
+                try
+                    [~, ~, L_tmp] = ripleyKL2D(xy_rand, 0, fov_size);
+                    L_perm(p, :) = L_tmp;
+                catch
+                    L_perm(p, :) = NaN;
+                end
+            end
+
+            % Remove failed permutations
+            L_perm = L_perm(~any(isnan(L_perm), 2), :);
+            if size(L_perm, 1) < 10, continue; end
+
+            % Store observed and full permutation matrix
+            all_L_obs.(cell_types{ct}){end+1}  = L_obs;
+            all_L_perm.(cell_types{ct}){end+1} = L_perm;   % N_valid x n_r
+            all_weights.(cell_types{ct}){end+1} = n_pts;
+
+            fprintf('  [%s] z=%g, n=%d, perm OK\n', cell_types{ct}, z_now, n_pts);
+        end
+    end
+
+    clearvars -except ...
+        confiles folder_names concat_folder ...
+        sig_level fov_size N_perm cell_types type_colors ...
+        all_L_obs all_L_perm all_weights r_ref file_i;
+end
+
+%% Plotting
+figure('Position', [100 100 750 320]);
+labels_names = {'MFB+', 'MFB-'};
+plot_types = [1, 2];  % PM and NM only
+
+for pi = 1:2
+    ct = plot_types(pi);
+    subplot(1, 2, pi);
     hold on;
-    plot((modes-1)*15+1, cell_data, '-', 'Color', [51, 204, 204]/255, 'LineWidth', 1.5)
 
+    L_obs_cell = all_L_obs.(cell_types{ct});
+    if isempty(L_obs_cell), continue; end
+
+    % Get weights
+    w = cell2mat(all_weights.(cell_types{ct})');  % n_layers x 1
+    w = w / sum(w);
+    n_layers = length(w);
+    n_r = length(r_ref);
+
+    % Observed: weighted mean
+    L_obs_mat  = cell2mat(L_obs_cell');
+    L_obs_mean = w' * L_obs_mat;
+
+    % Null: aggregate first, then 95% CI from percentiles
+    L_perm_cells = all_L_perm.(cell_types{ct});
+    min_perm = min(cellfun(@(x) size(x, 1), L_perm_cells));
+
+    L_agg_null = zeros(min_perm, n_r);
+    for k = 1:n_layers
+        L_agg_null = L_agg_null + w(k) * L_perm_cells{k}(1:min_perm, :);
+    end
+
+    L_null_mean = mean(L_agg_null, 1);
+    L_null_lo   = prctile(L_agg_null, 2.5, 1);
+    L_null_hi   = prctile(L_agg_null, 97.5, 1);
+
+    c = type_colors(ct, :);
+
+    % Null 95% CI (grey shading)
+    fill([r_ref, fliplr(r_ref)], ...
+         [L_null_hi, fliplr(L_null_lo)], ...
+         [0.85 0.85 0.85], 'FaceAlpha', 0.6, 'EdgeColor', 'none');
+
+    % Null mean (grey dashed)
+    plot(r_ref, L_null_mean, '--', 'Color', [0.5 0.5 0.5], 'LineWidth', 1.5);
+
+    % Observed mean curve
+    plot(r_ref, L_obs_mean, '-', 'Color', c, 'LineWidth', 2.5);
+
+    % Mark regions where observed mean exceeds null 95% CI
+    above = L_obs_mean > L_null_hi;
+    if any(above)
+        plot(r_ref(above), L_obs_mean(above), '.', 'Color', c, 'MarkerSize', 8);
+    end
+
+    xlabel('r (µm)', 'FontSize', 18);
+    ylabel('L(r) - r', 'FontSize', 18);
+    title(sprintf('%s', labels_names{pi}), 'FontSize', 18, 'FontWeight', 'bold');
+
+    legend({'Null 95% CI', 'Null mean', ...
+            sprintf('%s mean', labels_names{pi})}, ...
+           'Location', 'best', 'Box', 'off', 'FontSize', 14);
+
+    set(gca, 'LineWidth', 1, 'FontSize', 18, 'Box', 'off');
 end
 
-allData = [];
-for i=1:length(Cvev_loco)
-    cell_data = Cvev_loco{i};
-    allData = [allData; cell_data];
+% Save
+savepath    = 'X:/MFB';
+currentDate = datestr(now, 'yyyy-mm-dd');
+savepath2   = fullfile(savepath, 'Figures', 'Figure6', currentDate);
+if ~exist(savepath2, 'dir')
+    mkdir(savepath2);
 end
-
-overallMean = nanmean(allData);
-overallSEM = nanstd(allData) / sqrt(length(allData));
-hold on;
-x = (modes-1)*15+1;
-fill([x, fliplr(x)], [overallMean + overallSEM, fliplr(overallMean - overallSEM)], ...
-     [0.6, 0.6, 0.6], 'FaceAlpha', 0.6, 'EdgeColor', 'none');
-plot(x, overallMean, 'k', 'LineWidth', 1.5);
-
-title('Loco');
-xlabel('MFA#');
-ylabel('CVEV');
-
-xlim([1 240]);
-xticks([1 240])
-ylim([0 0.85]);
-yticks([0 0.85])
-
-set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out')
-
-fileName = ['Decode_allMF#_loco'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
+fullFilePathPDF = fullfile(savepath2, 'ripleyresults.pdf');
 exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
 
-figure('Position', [400, 100, 450, 350]);
-for i=1:length(Cvev_wsk)
-    cell_data = Cvev_wsk{i};
-    modes = 1:length(cell_data);
-    hold on;
-    plot((modes-1)*15+1, cell_data, '-', 'Color', [51, 204, 204]/255, 'LineWidth', 1.5)
-end
+%% supplementary part
+% --- ensure required params/flags exist even if this cell is run standalone ---
+block_size = 100;
+sig_level  = 2;
+plot_correlationsSpatial      = true;
+plot_correlationsSpatial_PMNM = true;
 
-
-allData = [];
-for i=1:length(Cvev_wsk)
-    cell_data = Cvev_wsk{i};
-    allData = [allData; cell_data];
-end
-
-overallMean = nanmean(allData);
-overallSEM = nanstd(allData) / sqrt(length(allData));
-hold on;
-x = (modes-1)*15+1;
-fill([x, fliplr(x)], [overallMean + overallSEM, fliplr(overallMean - overallSEM)], ...
-     [0.6, 0.6, 0.6], 'FaceAlpha', 0.6, 'EdgeColor', 'none');
-plot(x, overallMean, 'k', 'LineWidth', 1.5);
-
-title('Whisk');
-xlabel('MFA#');
-ylabel('CVEV');
-
-xlim([1 240]);
-xticks([1 240])
-ylim([0 0.85]);
-yticks([0 0.85])
-
-drawnow;
-set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out')
-
-fileName = ['Decode_allMF#_whisk'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-
-
-figure('Position', [400, 100, 450, 350]);
-for i=1:length(Cvev_loco)
-    cell_data = Cvev_state{i};
-    modes = 1:length(cell_data);
-    hold on;
-    plot((modes-1)*15+1, cell_data, '-', 'Color', [51, 204, 204]/255, 'LineWidth', 1.5)
-end
-
-allData = [];
-for i=1:length(Cvev_state)
-    cell_data = Cvev_state{i};
-    allData = [allData; cell_data];
-end
-
-overallMean = nanmean(allData);
-overallSEM = nanstd(allData) / sqrt(length(allData));
-hold on;
-x = (modes-1)*15+1;
-fill([x, fliplr(x)], [overallMean + overallSEM, fliplr(overallMean - overallSEM)], ...
-     [0.6, 0.6, 0.6], 'FaceAlpha', 0.6, 'EdgeColor', 'none');
-plot(x, overallMean, 'k', 'LineWidth', 1.5);
-
-title('States');
-xlabel('MFA#');
-ylabel('CVEV');
-
-xlim([1 240]);
-xticks([1 240])
-ylim([0 1]);
-yticks([0 1])
-
-drawnow;
-
-set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out')
-
-fileName = ['Decode_allMF#_state'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-
-
-%% plot by first/optimal MF based on corr with behaviour
-
-load ([savepath '\decode\Best_MFs_num.mat'])
-load([savepath '\decode\Sorted_Beta.mat'])
-
-Cvev_loco=[];
-Cvev_wsk=[];
-Cvev_state=[];
-itr=1;
+% initialise accumulators (appended to inside the file loop below)
+cc_all_qw = []; dd_all_qw = [];
+cc_all_as = []; dd_all_as = [];
+cc_all_pm = []; dd_all_pm = [];
+cc_all_nm = []; dd_all_nm = [];
+cc_all_ns = []; dd_all_ns = [];
 
 for file_i = 1:length(folder_names)
-    file = char(folder_names(file_i));
-    quickAnalysis;
-
-    Y = MI_wheel_r';
-    Y2 = MI_whisker_r';
-    Y3 = L_state';
-    X = dff_rz';
-
-
-    Y = Y(valid_t);
-    Y2 = Y2(valid_t);
-    Y3 = Y3(valid_t);
-    X = X(valid_t, :);
-    L_state = L_state(valid_t);
-
-    cvev_loco_results = zeros(itr,1);
-    cvev_wsk_results = zeros(itr,1);
-    cvev_state_results = zeros(itr,1);
-
-    for j = 1:itr
-       % 1. select MFs in loco (Y)
-        N = num_MF_loco(file_i); % or  N = 1
-
-        selected_loco = randperm(size(X,2), N);
-        
-        beta_loco_i = beta_loco_sorted_indices_all{file_i};
-        beta_loco_arr= zeros(size(X, 2), 1);
-        beta_loco_arr(beta_loco_i) = 1:length(beta_loco_i);
-        
-        [~, sorted_indices_corr] = sort(corr(X,Y), 'descend');
-        corr_loco_rank = zeros(size(X, 2), 1);
-        corr_loco_rank(sorted_indices_corr) = 1:length(sorted_indices_corr);
-        
-        beta_norm = (beta_loco_arr - min(beta_loco_arr)) / (max(beta_loco_arr) - min(beta_loco_arr));
-        corr_norm = (corr_loco_rank - min(corr_loco_rank)) / (max(corr_loco_rank) - min(corr_loco_rank));
-        
-        combined_rank_loco = 0.5 * beta_norm + 0.5 * corr_norm;
-        [~, final_rank_loco] = sort(combined_rank_loco, 'ascend');
-        selected_loco_sorted = final_rank_loco(1:N);
-        
-        % 2. select MFs in wsk (Y2)
-        N = num_MF_wsk(file_i); % or N =1
-
-        selected_wsk = randperm(size(X,2), N);
-        
-        beta_wsk = beta_wsk_sorted_indices_all{file_i};
-        beta_wsk_array = zeros(size(X, 2), 1);
-        beta_wsk_array(beta_wsk) = 1:length(beta_wsk);
-        
-        [~, sorted_indices_corr_wsk] = sort(corr(X,Y2), 'descend');
-        corr_wsk_rank = zeros(size(X, 2), 1);
-        corr_wsk_rank(sorted_indices_corr_wsk) = 1:length(sorted_indices_corr_wsk);
-
-        beta_wsk_norm = (beta_wsk_array - min(beta_wsk_array)) / (max(beta_wsk_array) - min(beta_wsk_array));
-        corr_wsk_norm = (corr_wsk_rank - min(corr_wsk_rank)) / (max(corr_wsk_rank) - min(corr_wsk_rank));
-        
-        combined_rank_wsk = 0.5 * beta_wsk_norm + 0.5 * corr_wsk_norm;
-        [~, final_rank_wsk] = sort(combined_rank_wsk, 'ascend');
-        selected_wsk_sorted = final_rank_wsk(1:N);
-        
-        % 3. select MFs in states (Y3) 
-        N = num_MF_state(file_i); % or N =1
-        if isnan(N)
-            nancheck = 1;
-        else
-            nancheck = 0;
-            selected_state = randperm(size(X,2), N);
-        end
-        
-        beta_state = beta_state_sorted_indices_all{file_i};
-        beta_state_array = zeros(size(X, 2), 1);
-        beta_state_array(beta_state) = 1:length(beta_state);
-        
-        [~, sorted_indices_corr_state] = sort(corr(X,Y3), 'descend');
-        corr_state_rank = zeros(size(X, 2), 1);
-        corr_state_rank(sorted_indices_corr_state) = 1:length(sorted_indices_corr_state);
-
-        beta_state_norm = (beta_state_array - min(beta_state_array)) / (max(beta_state_array) - min(beta_state_array));
-        corr_state_norm = (corr_state_rank - min(corr_state_rank)) / (max(corr_state_rank) - min(corr_state_rank));
-
-        combined_rank_state = 0.5 * beta_state_norm + 0.5 * corr_state_norm;
-        [~, final_rank_state] = sort(combined_rank_state, 'ascend');
-        
-        if nancheck == 0
-            selected_state_sorted = final_rank_state(1:N); 
-        else 
-            selected_state_sorted = 1; 
-        end
-
-        X_n_loco = X(:, selected_loco_sorted);
-        X_n_wsk = X(:, selected_wsk_sorted);
-        X_n_state = X(:, selected_state_sorted); 
-
-        cvp = cvpartition(size(X, 1), 'KFold', 5);
-        cvev_loco = zeros(cvp.NumTestSets, 1);
-        cvev_wsk = zeros(cvp.NumTestSets, 1);
-        cvev_state = zeros(cvp.NumTestSets, 1);
-
-        [B_loco_all, FitInfo_loco_all] = lasso(X_n_loco, Y, 'CV', 10);
-        lambda_opt_loco = FitInfo_loco_all.LambdaMinMSE;
-        intercept_loco = FitInfo_loco_all.Intercept(FitInfo_loco_all.IndexMinMSE);
-        
-        [B_wsk_all, FitInfo_wsk_all] = lasso(X_n_wsk, Y2, 'CV', 10);
-        lambda_opt_wsk = FitInfo_wsk_all.LambdaMinMSE;
-        intercept_wsk = FitInfo_wsk_all.Intercept(FitInfo_wsk_all.IndexMinMSE);
-        
-        [B_state_all, FitInfo_state_all] = lasso(X_n_state, Y3, 'CV', 10);
-        lambda_opt_state = FitInfo_state_all.LambdaMinMSE;
-        intercept_state = FitInfo_state_all.Intercept(FitInfo_state_all.IndexMinMSE);
-        
-        for i = 1:cvp.NumTestSets
-            trainIdx = cvp.training(i);
-            testIdx = cvp.test(i);
-        
-            B_loco = lasso(X_n_loco(trainIdx, :), Y(trainIdx), 'Lambda', lambda_opt_loco);
-            B_wsk = lasso(X_n_wsk(trainIdx, :), Y2(trainIdx), 'Lambda', lambda_opt_wsk);
-            B_state = lasso(X_n_state(trainIdx, :), Y3(trainIdx), 'Lambda', lambda_opt_state);
-        
-            Y_pred_loco = X_n_loco(testIdx, :) * B_loco + intercept_loco;
-            Y_pred_wsk = X_n_wsk(testIdx, :) * B_wsk + intercept_wsk;
-            Y_pred_state = X_n_state(testIdx, :) * B_state + intercept_state;
-        
-            cvev_loco(i) = cal_cvev(Y(testIdx), Y_pred_loco);
-            cvev_wsk(i) = cal_cvev(Y2(testIdx), Y_pred_wsk);
-            cvev_state(i) = cal_cvev(Y3(testIdx), Y_pred_state);
-        end
+    fprintf('=== Processing file %d/%d: %s ===\n', file_i, length(folder_names), folder_names{file_i});
     
-            % Store results for each iteration
-            cvev_loco_results(j) = mean(cvev_loco);
-            cvev_wsk_results(j) = mean(cvev_wsk);
-            if nancheck ~= 1
-                cvev_state_results(j) = mean(cvev_state);
+    filePath = fullfile(concat_folder, confiles(file_i).name);
+    load(filePath)
+    dff_r = dff_r0_all;
+    cc1 = corr(dff_r', 'rows', 'complete');
+    cc1(eye(length(cc1)) == 1) = nan;
+    Nmf1 = length(cc1);
+    dff_rz = (dff_r - nanmean(dff_r')') ./ nanstd(dff_r')';
+
+    if ~all(L_state == 0)
+        fprintf('  Running bootstrap_cc...\n');
+        [cc_wL, zc_wL] = bootstrap_cc(dff_rz', L_state', block_size, 300);
+    else
+        fprintf('  Skipping: L_state is all zeros.\n');
+        continue
+    end
+
+    pm = zc_wL > sig_level;
+    [~, pm_ids] = find(pm == 1);
+    nm = zc_wL < -sig_level;
+    [~, nm_ids] = find(nm == 1);
+    nsm = abs(zc_wL) < sig_level;
+    [~, ns_ids] = find(nsm == 1);
+    fprintf('  PM: %d, NM: %d, NSM: %d boutons\n', length(pm_ids), length(nm_ids), length(ns_ids));
+
+    Nmf = Nmf1;
+
+    if Nmf > 1
+        fprintf('  Computing pairwise distances (Nmf = %d)...\n', Nmf);
+        dd = nan * ones(Nmf, Nmf);
+        for iii = 1:Nmf
+            dd(iii,:) = sqrt(nansum((xyz - xyz(iii,:)).^2, 2));
+        end
+
+        % === QW ===
+        fprintf('  Running QW bootstrap_cc_pw...\n');
+        [cc_qw, zc_qw] = bootstrap_cc_pw(dff_rz(:, L_state == 0), block_size, 200);
+        if length(cc_qw) > 1
+            cc_qw(eye(size(cc_qw)) == 1) = nan;
+            cc_qw(abs(zc_qw) < sig_level) = nan;
+            cc_all_qw = [cc_all_qw; cc_qw(~isnan(cc_qw))];
+            dd_all_qw = [dd_all_qw; dd(~isnan(cc_qw))];
+            fprintf('  QW: %d pairs added\n', sum(~isnan(cc_qw(:))));
+        end
+
+        % === AS ===
+        fprintf('  Running AS bootstrap_cc_pw...\n');
+        [cc_as, zc_as] = bootstrap_cc_pw(dff_rz(:, L_state == 1), block_size, 200);
+        if length(cc_as) > 1
+            cc_as(eye(size(cc_as)) == 1) = nan;
+            cc_as(abs(zc_as) < sig_level) = nan;
+            cc_all_as = [cc_all_as; cc_as(~isnan(cc_as))];
+            dd_all_as = [dd_all_as; dd(~isnan(cc_as))];
+            fprintf('  AS: %d pairs added\n', sum(~isnan(cc_as(:))));
+        end
+
+        % === PM ===
+        if ~isempty(pm_ids)
+            fprintf('  Running PM bootstrap_cc_pw...\n');
+            dd_pm = dd(pm_ids, pm_ids);
+            [cc_pm, zc_pm] = bootstrap_cc_pw(dff_rz(pm_ids, L_state == 1), block_size, 200);
+            if length(cc_pm) > 1
+                cc_pm(eye(size(cc_pm)) == 1) = nan;
+                cc_pm(abs(zc_pm) < sig_level) = nan;
+                cc_all_pm = [cc_all_pm; cc_pm(~isnan(cc_pm))];
+                dd_all_pm = [dd_all_pm; dd_pm(~isnan(cc_pm))];
+                fprintf('  PM: %d pairs added\n', sum(~isnan(cc_pm(:))));
             end
         end
 
-    % Average CVEV
-    meanCVEV_loco = mean(cvev_loco_results);
-    meanCVEV_wsk = mean(cvev_wsk_results);
-    if nancheck ~= 1
-        meanCVEV_state = mean(cvev_state_results);
+        % === NM ===
+        if ~isempty(nm_ids)
+            fprintf('  Running NM bootstrap_cc_pw...\n');
+            dd_nm = dd(nm_ids, nm_ids);
+            [cc_nm, zc_nm] = bootstrap_cc_pw(dff_rz(nm_ids, L_state == 1), block_size, 200);
+            if length(cc_nm) > 1
+                cc_nm(eye(size(cc_nm)) == 1) = nan;
+                cc_nm(abs(zc_nm) < sig_level) = nan;
+                cc_all_nm = [cc_all_nm; cc_nm(~isnan(cc_nm))];
+                dd_all_nm = [dd_all_nm; dd_nm(~isnan(cc_nm))];
+                fprintf('  NM: %d pairs added\n', sum(~isnan(cc_nm(:))));
+            end
+        end
+
+        % === NSM ===
+        if ~isempty(ns_ids)
+            fprintf('  Running NSM bootstrap_cc_pw...\n');
+            dd_ns = dd(ns_ids, ns_ids);
+            [cc_ns, zc_ns] = bootstrap_cc_pw(dff_rz(ns_ids, L_state == 1), block_size, 200);
+            if length(cc_ns) > 1
+                cc_ns(eye(size(cc_ns)) == 1) = nan;
+                cc_ns(abs(zc_ns) < sig_level) = nan;
+                cc_all_ns = [cc_all_ns; cc_ns(~isnan(cc_ns))];
+                dd_all_ns = [dd_all_ns; dd_ns(~isnan(cc_ns))];
+                fprintf('  NSM: %d pairs added\n', sum(~isnan(cc_ns(:))));
+            end
+        end
+
     else
-        meanCVEV_state = nan;
+        fprintf('  Skipping: Nmf <= 1\n');
     end
 
-    % Store or output the results
-    Cvev_loco{file_i} = meanCVEV_loco;
-    Cvev_wsk{file_i} = meanCVEV_wsk;
-    Cvev_state{file_i} = meanCVEV_state;
+    fprintf('  File %d/%d done.\n\n', file_i, length(folder_names));
+end
+fprintf('All files processed.\n');
+
+%% === Plot: QW and AS spatial correlations ===
+if plot_correlationsSpatial
+
+    for kk = 1:2
+
+        if kk == 1
+            x = dd_all_qw;
+            y = cc_all_qw;
+            which_state = 'Quiet Wakefulness';
+            title_color = 'c';
+        elseif kk == 2
+            x = dd_all_as;
+            y = cc_all_as;
+            which_state = 'Active State';
+            title_color = 'm';
+        end
+
+        figure('Position', [160 360 600 400])
+        hold on
+        title(which_state, 'Color', title_color)
+
+        xx = 0:10:200;
+        clids = find((x > 10) .* (y < 1));
+        x = x(clids);
+        y = y(clids);
+
+        bins = -1:.1:1;
+        yhh = nan([length(bins)-1, length(xx)-1]);
+
+        ym = zeros(1, length(xx)-1);
+        ye = zeros(1, length(xx)-1);
+        ym2 = zeros(1, length(xx)-1);
+        ye2 = zeros(1, length(xx)-1);
+
+        y_all_kk = cell(1, length(xx)-1);
+        for j = 1:length(xx)-1
+            bin_ids = find((x >= xx(j)) .* (x < xx(j+1)));
+            y_all_kk{j} = y(bin_ids);
+
+            ym(j) = nanmean(y(bin_ids));
+            ye(j) = nanstd(y(bin_ids));
+            ym2(j) = nanmean(abs(y(bin_ids)));
+            ye2(j) = nanstd(abs(y(bin_ids)));
+
+            [yh, yx] = histcounts(y(bin_ids), bins);
+            yhh(:, j) = yh;
+        end
+
+        xc = xx(1:end-1) + diff(xx(1:2))/2;
+        yxc = yx(1:end-1) + diff(yx(1:2))/2;
+
+        if kk == 1
+            ym_sta = ym; ye_sta = ye;
+            ym2_sta = ym2; ye2_sta = ye2;
+        elseif kk == 2
+            ym_run = ym; ye_run = ye;
+            ym2_run = ym2; ye2_run = ye2;
+        end
+
+        [a, b] = meshgrid(yxc, xc);
+        surfc(a, b, yhh');
+        colormap('redblue')
+        rotate3d on
+        view(-15, 60)
+
+        ylabel({'MFB pairwise', 'distance (μm)'}, 'Rotation', -60)
+        xlabel({'MFB pairwise correlation'}, 'rotation', 0)
+        zlabel('# MFB pairs')
+
+        set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', ...
+            'TickDir', 'out', 'TickLength', [.01 .01])
+
+        currentDate = datestr(now, 'yyyy-mm-dd');
+        savepath2 = fullfile(savepath, 'Figures', 'Figure6', currentDate);
+        if ~exist(savepath2, 'dir')
+            mkdir(savepath2);
+        end
+        fileName = ['CC_spatial_' which_state];
+        fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+        exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+    end
+
+    %% Average CC plot
+    figure('Position', [160 260 700 350])
+
+    subplot(1,2,1);
+    title('Q-state', 'color', 'c')
+    hold on
+    h1 = plot(xc, ym_sta, 'k-', 'LineWidth', 2);
+    errorbar(xc, ym_sta, ye_sta, 'k-')
+    h2 = plot(xc, ym2_sta, 'r-', 'LineWidth', 2);
+    errorbar(xc, ym2_sta, ye2_sta, 'r-')
+    legend([h1, h2], {'Average CC', 'Average |CC|'}, 'Location', 'best')
+    legend boxoff
+    xlim([0, 200]); ylim([-1, 1])
+    xlabel({'MFB pairwise distance (μm)'})
+    ylabel({'MFB pairwise correlation'})
+    set(gca, 'LineWidth', 1, 'FontSize', 18, 'Box', 'off', ...
+        'TickDir', 'out', 'TickLength', [.01 .01])
+
+    subplot(1,2,2);
+    title('A-State', 'color', 'm')
+    hold on
+    plot(xc, ym_run, 'k-', 'LineWidth', 2);
+    errorbar(xc, ym_run, ye_run, 'k-')
+    plot(xc, ym2_run, 'r-', 'LineWidth', 2);
+    errorbar(xc, ym2_run, ye2_run, 'r-')
+    xlim([0, 200]); ylim([-1, 1])
+    set(gca, 'LineWidth', 1, 'FontSize', 18, 'Box', 'off', ...
+        'TickDir', 'out', 'TickLength', [.01 .01])
+
+    fileName = 'CC_spatial_avg_AQ';
+    fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+    exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 end
 
+%% === Plot: PM / NM / NSM ===
+if plot_correlationsSpatial_PMNM
 
-%% Save the results
-save([savepath '\decode\results_lasso_MFs_sorted_beta.mat'],'Cvev_loco','Cvev_wsk','Cvev_state');
-%for the best one MF
-%save([savepath '\decode\results_lasso_1_MF_sorted_beta.mat'],'Cvev_loco','Cvev_wsk','Cvev_state');   
+    for kk = 1:3
 
-%% plot
-load([savepath '\decode\results_lasso_MFs_sorted_beta.mat']);
-result_wsk_lasso = cellfun(@(x) x(1), Cvev_wsk);
-result_loco_lasso = cellfun(@(x) x(1), Cvev_loco);
-result_state_lasso = cellfun(@(x) x(1), Cvev_state);
+        if kk == 1
+            x = dd_all_pm; y = cc_all_pm; which_state = 'PM';
+        elseif kk == 2
+            x = dd_all_nm; y = cc_all_nm; which_state = 'NM';
+        elseif kk == 3
+            x = dd_all_ns; y = cc_all_ns; which_state = 'NSM';
+        end
 
-load([savepath '\decode\results_lasso_1_MF_sorted_beta.mat']);
-result_wsk_lasso_1 = cellfun(@(x) x(1), Cvev_wsk);
-result_loco_lasso_1 = cellfun(@(x) x(1), Cvev_loco);
-result_state_lasso_1 = cellfun(@(x) x(1), Cvev_state);
+        figure('Position', [160 360 600 400])
+        hold on
+        title(which_state)
 
-% WSK
-set(figure, 'Position', [400, 100, 350, 350]);
-hold on;
+        xx = 0:10:200;
+        clids = find((x > 10) .* (y < 1));
+        x = x(clids);
+        y = y(clids);
 
-bar_data_wsk = [mean(result_wsk_lasso), mean(result_wsk_lasso_1)];
-b1 = bar([1, 2], bar_data_wsk, 'FaceColor', 'k', 'FaceAlpha', 0.1);
-scatter(ones(size(result_wsk_lasso)), result_wsk_lasso, 50, 'k');
-scatter(ones(size(result_wsk_lasso_1)) + 1, result_wsk_lasso_1, 50, 'k');
-for i = 1:length(result_wsk_lasso)
-    plot([1, 2], [result_wsk_lasso(i), result_wsk_lasso_1(i)], 'k--', 'Color', [0.5 0.5 0.5]);
+        bins = -1:.1:1;
+        yhh = nan([length(bins)-1, length(xx)-1]);
+
+        ym = zeros(1, length(xx)-1);
+        ye = zeros(1, length(xx)-1);
+        ym2 = zeros(1, length(xx)-1);
+        ye2 = zeros(1, length(xx)-1);
+
+        for j = 1:length(xx)-1
+            bin_ids = find((x >= xx(j)) .* (x < xx(j+1)));
+            ym(j) = nanmean(y(bin_ids));
+            ye(j) = nanstd(y(bin_ids));
+            ym2(j) = nanmean(abs(y(bin_ids)));
+            ye2(j) = nanstd(abs(y(bin_ids)));
+            [yh, yx] = histcounts(y(bin_ids), bins);
+            yhh(:, j) = yh;
+        end
+
+        xc = xx(1:end-1) + diff(xx(1:2))/2;
+        yxc = yx(1:end-1) + diff(yx(1:2))/2;
+
+        if kk == 1
+            ym_pm = ym; ye_pm = ye; ym2_pm = ym2; ye2_pm = ye2;
+        elseif kk == 2
+            ym_nm = ym; ye_nm = ye; ym2_nm = ym2; ye2_nm = ye2;
+        elseif kk == 3
+            ym_ns = ym; ye_ns = ye; ym2_ns = ym2; ye2_ns = ye2;
+        end
+
+        [a, b] = meshgrid(yxc, xc);
+        surfc(a, b, yhh');
+        colormap('redblue')
+        rotate3d on
+        view(-15, 60)
+
+        ylabel({'MFB pairwise', 'distance (μm)'}, 'Rotation', -60)
+        xlabel({'MFB pairwise correlation'}, 'rotation', 0)
+        zlabel('# MFB pairs')
+
+        set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', ...
+            'TickDir', 'out', 'TickLength', [.01 .01])
+
+        fileName = ['CC_spatial_' which_state];
+        fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+        exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+    end
+
+    figure('Position', [160 60 350 750])
+
+    subplot(311);
+    title('PM'); hold on
+    h1 = plot(xc, ym_pm, 'k-', 'LineWidth', 2);
+    errorbar(xc, ym_pm, ye_pm, 'k-')
+    h2 = plot(xc, ym2_pm, 'r-', 'LineWidth', 2);
+    errorbar(xc, ym2_pm, ye2_pm, 'r-')
+    legend([h1, h2], {'Average CC', 'Average |CC|'}, 'Location', 'best')
+    legend boxoff
+    xlim([0, 200]); ylim([-1, 1])
+    pos = get(gca, 'Position'); pos(1) = 0.2; pos(3) = 0.75; set(gca, 'Position', pos)
+    set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out', 'TickLength', [.01 .01])
+
+    subplot(312);
+    title('NM'); hold on
+    h3 = plot(xc, ym_nm, 'k-', 'LineWidth', 2);
+    errorbar(xc, ym_nm, ye_nm, 'k-')
+    h4 = plot(xc, ym2_nm, 'b-', 'LineWidth', 2);
+    errorbar(xc, ym2_nm, ye2_nm, 'b-')
+    legend([h3, h4], {'Average CC', 'Average |CC|'}, 'Location', 'best')
+    legend boxoff
+    xlim([0, 200]); ylim([-1, 1])
+    ylabel({'MFB pairwise correlation'})
+    pos = get(gca, 'Position'); pos(1) = 0.2; pos(3) = 0.75; set(gca, 'Position', pos)
+    set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out', 'TickLength', [.01 .01])
+
+    subplot(313);
+    title('NSM'); hold on
+    h5 = plot(xc, ym_ns, 'k-', 'LineWidth', 2);
+    errorbar(xc, ym_ns, ye_ns, 'k-')
+    h6 = plot(xc, ym2_ns, '-', 'color', [0.5, 0.5, 0.5], 'LineWidth', 2);
+    errorbar(xc, ym2_ns, ye2_ns, '-', 'color', [0.5, 0.5, 0.5])
+    legend([h5, h6], {'Average CC', 'Average |CC|'}, 'Location', 'best')
+    legend boxoff
+    xlim([0, 200]); ylim([-1, 1])
+    xlabel({'MFB pairwise distance (μm)'})
+    set(get(gca, 'YLabel'), 'Position', [-30 0 0])
+    pos = get(gca, 'Position'); pos(1) = 0.2; pos(3) = 0.75; set(gca, 'Position', pos)
+    set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out', 'TickLength', [.01 .01])
+
+    fileName = 'CC_spatial_avg';
+    fullFilePathPDF = fullfile(savepath2, [fileName, '.pdf']);
+    exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 end
-
-set(gca, 'XTick', [1, 2], 'XTickLabel', {'Lasso', 'Best MF'},'FontSize',15,'LineWidth',1);
-ylabel('CVEV');
-title('Whisk');
-yticks([0 0.5 1])
-ylim([0 1])
-[p_wsk, h_wsk] = signrank(result_wsk_lasso, result_wsk_lasso_1)
-
-
-fileName = 'Lasso_MF1vsall_whisk';
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-
-% Loco
-set(figure, 'Position', [400, 100, 350, 350]);
-hold on;
-
-bar_data_loco = [mean(result_loco_lasso), mean(result_loco_lasso_1)];
-b2 = bar([1, 2], bar_data_loco, 'FaceColor', 'k', 'FaceAlpha', 0.1);
-scatter(ones(size(result_loco_lasso)), result_loco_lasso, 50, 'k');
-scatter(ones(size(result_loco_lasso_1)) + 1, result_loco_lasso_1, 50, 'k');
-
-for i = 1:length(result_loco_lasso)
-    plot([1, 2], [result_loco_lasso(i), result_loco_lasso_1(i)], 'k--', 'Color', [0.5 0.5 0.5]);
-end
-
-set(gca, 'XTick', [1, 2], 'XTickLabel', {'Lasso', 'Best MF'},'FontSize',15,'LineWidth',1);
-ylabel('CVEV');
-title('Loco');
-yticks([0 0.5 1])
-ylim([0 1])
-
-fileName = 'Lasso_MF1vsall_loco';
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-[p_loco, h_loco] = signrank(result_loco_lasso, result_loco_lasso_1)
-
-
-% State
-set(figure, 'Position', [400, 100, 350, 350]);
-hold on
-
-bar_data_state = [nanmean(result_state_lasso), nanmean(result_state_lasso_1)]; 
-b3 = bar([1, 2], bar_data_state, 'FaceColor', 'k', 'FaceAlpha', 0.1); 
-scatter(ones(size(result_state_lasso)), result_state_lasso, 50, 'k');
-scatter(ones(size(result_state_lasso_1)) + 1, result_state_lasso_1, 50, 'k'); 
-for i = 1:length(result_state_lasso)
-    plot([1, 2], [result_state_lasso(i), result_state_lasso_1(i)], 'k--', 'Color', [0.5 0.5 0.5]);
-end
-
-set(gca, 'XTick', [1, 2], 'XTickLabel', {'Lasso', 'Best MF'},'FontSize',15,'LineWidth',1);
-ylabel('CVEV');
-title('State');
-yticks([0 0.5 1])
-ylim([0 1])
-[p_state, h_state] = signrank(result_state_lasso, result_state_lasso_1)
-
-fileName = 'Lasso_MF1vsall_state';
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
-

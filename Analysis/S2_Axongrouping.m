@@ -10,27 +10,27 @@ dff0_rz = (dff0_r - nanmean(dff0_r')') ./ nanstd(dff0_r')';
 cc0 = corr(dff0_r', 'rows', 'complete','type','Spearman'); 
 cc0(eye(length(cc0))==1)=nan;
 cc_th = prctile(cc0(~isnan(cc0)), 99); % 99th percentile
-
+figure(position = [100 100 350 300])
 histogram(cc0(~isnan(cc0)),'FaceColor', [0 0 0],'BinWidth',0.02,'normalization','count')
 xline(cc_th, '--r', 'LineWidth', 2, 'Label', '99th percentile');
 xlabel('Spearman CC');
 ylabel('Count');
 yticks([0 6000 12000])
-set(gca, 'LineWidth', 1, 'FontSize', 18, ...
+set(gca, 'LineWidth', 1, 'FontSize', 15, ...
     'FontName'   , 'Helvetica', ...
     'Box'         , 'off'     , ...
     'TickDir'     , 'out'     , ...
     'TickLength'  , [.02 .02] , ...
     'ZMinorTick'  , 'off'  ...
     )
-
+mfbFolderPath = 'X:\MFB';
 currentDate = datestr(now, 'yyyy-mm-dd');
-savepath2 = fullfile(savepath, 'Figures', 'Supp.Figures/S2/', currentDate);
-if ~exist(savepath2, 'dir')
-    mkdir(savepath2);
+folderPath = fullfile(mfbFolderPath, 'Figures', 'Supp.Figures/S2/', currentDate);
+if ~exist(folderPath, 'dir')
+    mkdir(folderPath);
 end
 fileName = ['example correlation distribution'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
+fullFilePathPDF = fullfile(folderPath, [fileName,'.pdf']);
 exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
 groups_cc = {};
@@ -125,12 +125,13 @@ for i = 1:Nmf0
     groups_ldr{i} = ldr_members; 
 end
 
+figure(position = [100 100 350 300])
 plot(cc0,ldr,'o','color',[0.4 0.4 0.4])
 yline(ldr_th, '--r', 'LineWidth', 2, 'Label', 'LDR = 1.5');
 xlabel('Spearman CC');
 ylabel('LDR');
 ylim([0 10])
-set(gca, 'LineWidth', 1, 'FontSize', 20, ...
+set(gca, 'LineWidth', 1, 'FontSize', 15, ...
     'FontName'   , 'Helvetica', ...
     'Box'         , 'off'     , ...
     'TickDir'     , 'out'     , ...
@@ -138,46 +139,88 @@ set(gca, 'LineWidth', 1, 'FontSize', 20, ...
     'ZMinorTick'  , 'off'  ...
     )
 fileName = ['LDR threshold'];
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
+fullFilePathPDF = fullfile(folderPath, [fileName,'.pdf']);
 exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
 
-%% Supp 2c
-m = [92,88]%[226 244];
-fig = figure('visible', 'on', 'position', [100 100 830 150]);
+%% S2c
+m = [92,88]% [226 244]%[92,88]%;
+fig = figure('visible', 'on', 'position', [100 100 1000 250]);
+
+offset = 1* range(dff0_r(m(1),:)) + 1.4*range(dff0_r(m(2),:));
+
+trace1 = dff0_r(m(1), :);
+trace2 = dff0_r(m(2), :) - offset;
 
 x_limits = [1, size(dff0_r, 2)];
-all_data = dff0_r(m,:);
-y_limits = [min(all_data(:)), max(all_data(:))];
+y_limits = [min(trace2), max(trace1)];
 
-t = tiledlayout(length(m), 1, 'TileSpacing', 'none', 'Padding', 'compact');
+ax = axes(fig);
+hold on;
+plot(trace1, 'k');
+plot(trace2, 'k');
+xlim(x_limits);
+ylim(y_limits);
+axis off;
 
-for plot_i = 1:length(m)
-    ax = nexttile;
-    plot(dff0_r(m(plot_i), :), 'k');
-    xlim(x_limits);
-    ylim(y_limits);
-    set(ax, 'LineWidth', 1, 'FontSize', 15, 'FontName', 'Helvetica',...
-    'Box', 'off', 'TickDir', 'out', 'TickLength', [.02 .02]);
-    axis(ax, 'off');
-end
-linkaxes(findall(fig, 'type', 'axes'), 'xy');
-ax = nexttile(length(m));
-hold(ax, 'on');
+% Scale bar
 x_start = x_limits(2) - 1100;
-y_start = y_limits(1) - 1.4;
-line(ax, [x_start, x_start+1000], [y_start, y_start],...
-'Color', 'k', 'LineWidth', 2, 'Clipping', 'off');
-line(ax, [x_start, x_start], [y_start, y_start+1],...
-'Color', 'k', 'LineWidth', 2, 'Clipping', 'off');
-text(ax, x_start+500, y_start, '10 s',...
-'FontSize', 12, 'HorizontalAlignment', 'center',...
-'VerticalAlignment', 'top');
-text(ax, x_start-150, y_start+0.2, '1 \DeltaF/F',...
-'FontSize', 12, 'HorizontalAlignment', 'right',...
-'VerticalAlignment', 'bottom');
-hold(ax, 'off');
-set(findall(fig, 'type', 'axes'), 'XLim', x_limits, 'YLim', y_limits);
-fileName = 'example_with_scale_bar';
-fullFilePathPDF = fullfile(savepath2, [fileName,'.pdf']);
-exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
+y_start = y_limits(1)+3.8;
+line([x_start, x_start+1000], [y_start, y_start],   'Color','k','LineWidth',2,'Clipping','off');
+line([x_start, x_start],      [y_start, y_start+0.5],  'Color','k','LineWidth',2,'Clipping','off');
+text(x_start+500, y_start, '10 s',        'FontSize',15,'HorizontalAlignment','center','VerticalAlignment','top');
+text(x_start-50,  y_start+0.5, '0.5 \DeltaF/F', 'FontSize',15,'HorizontalAlignment','right');
+
+hold off;
+
+
+inset_range = 38957:39617;
+y_box = [min(min(trace1(inset_range)), min(trace2(inset_range))), ...
+         max(max(trace1(inset_range)), max(trace2(inset_range)))];
+rectangle('Position', [inset_range(1), y_box(1), length(inset_range), diff(y_box)], ...
+          'EdgeColor', 'r', 'LineWidth', 1.5, 'LineStyle', '--');
+
+
+exportgraphics(fig, fullfile(folderPath, 'example_with_scale_bar.pdf'), 'ContentType','vector');
+
+fig_inset = figure('visible', 'on', 'position', [100 100 70 80]);
+hold on;
+plot(inset_range, trace1(inset_range), 'k', 'LineWidth', 0.5);
+plot(inset_range, trace2(inset_range) + offset, 'r', 'LineWidth', 0.5);
+xlim([inset_range(1), inset_range(end)]);
+axis off;
+
+inset_xl = xlim; inset_yl = ylim;
+sb_x = inset_xl(2) - 120;
+sb_y = inset_yl(2) - 0.05 * diff(inset_yl);
+sb_t = 100;    % 100 points = 1 s
+sb_df = 0.2;   % 0.2 dF/F
+line([sb_x, sb_x + sb_t], [sb_y, sb_y], 'Color', 'k', 'LineWidth', 1, 'Clipping', 'off');
+line([sb_x, sb_x], [sb_y - sb_df, sb_y], 'Color', 'k', 'LineWidth', 1, 'Clipping', 'off');
+text(sb_x + sb_t/2, sb_y, '1 s', 'FontSize', 10, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom');
+text(sb_x - 5, sb_y - sb_df, '0.2 \DeltaF/F', 'FontSize', 10, 'HorizontalAlignment', 'right');
+hold off;
+
+exportgraphics(fig_inset, fullfile(folderPath, 'mismatch_zoom.pdf'), 'ContentType', 'vector');
+
+
+
+zz0 = dff0_r_smooth;
+zz0(isnan(zz0)) = 0;
+i = m(1); j = m(2);
+a = get_var_ratio(zz0(i,:), zz0(j,:), 1);
+
+figs_before = findobj('type', 'figure');
+a = get_var_ratio(zz0(i,:), zz0(j,:), 1);
+figs_after = findobj('type', 'figure');
+
+new_figs = setdiff(figs_after, figs_before);
+
+
+
+
+for k = 1:length(new_figs)
+    exportgraphics(new_figs(k), fullfile(folderPath, ['var_ratio_fig', num2str(k), '.pdf']), 'ContentType', 'vector');
+end
+
+

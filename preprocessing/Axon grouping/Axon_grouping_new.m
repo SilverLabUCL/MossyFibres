@@ -68,6 +68,7 @@ end
 load(['X:\MFB\Smooth_data\', file, '.mat']);
 load(['X:\MFB\LDR\', file, '.mat']);
 
+%%
 ldr_th = 1.5; 
 pregroups2 = cell(1, Nmf0);
 
@@ -117,7 +118,7 @@ end
 %% manual check from results after ldr
 
 manual_check = 1;
-manualcheckplot2(dff0_r, groups_cc, groups_ldr); % dff activity, group after cc, group after ldr
+manualcheckplot2(dff0_r(:,1:5000), groups_cc, groups_ldr); % dff activity, group after cc, group after ldr
 % make sure maunal_groups is in the workspace as the output
 
 %% to merge

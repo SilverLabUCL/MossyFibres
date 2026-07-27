@@ -26,8 +26,16 @@ end
 
 ROI_fmb = ROI_f;% - nanmean(background(:));
 f_baseline = prctile(reshape(ROI_f, [N_miniroi, Ntr*length(T)]),10,2);
-
+abs_fluo_corrected = (ROI_fmb- 0) ./ reshape(ROI_area, [N_miniroi, 1, 1]);
 ROI_dff = (ROI_fmb - f_baseline)./f_baseline;
+
+
+% orginal 
+ROI_f_pre = permute(ROI_mean0r, [3,2,1]);  % [Ncycl, Ntr, N_miniroi] → [N_miniroi, Ntr, Ncycl]
+f_baseline_pre = prctile(reshape(ROI_f_pre, [N_miniroi, Ntr*Ncycl]), 10, 2);
+ROI_dff_pre = (ROI_f_pre - f_baseline_pre) ./ f_baseline_pre;
+
+
 zz  = importdata(strcat(prefix,num2str(patch_no),'_ROIcentroids.txt')); 
 zd = zz.data;
 Xc = zd(1:N_miniroi,2) *pixel_size; 
