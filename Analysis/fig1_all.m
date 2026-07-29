@@ -337,7 +337,7 @@ sbplt2 = [10];
 sbplt3 = [11];
 sbp_no = 11;    
 
-figure('Position', [100, 20, 570, 850]);
+figure('Position', [100, 20, 610, 780]);
 
 subplot(sbp_no,1,sbplt1); hold on
 bsh = randperm(Nmf);
@@ -368,8 +368,8 @@ ylabel({'Mossy fibre axon number'})
 set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out')
 % loco traces
 subplot(sbp_no,1,sbplt2); hold on;axis off
-plot(fastsmooth(Loco(tb:end), 10, 3, 1), 'Color', [173,210,157]/255, 'LineWidth', 1);
-plot([0,0], [0.28,0.38], 'k-', 'LineWidth',2)
+plot(fastsmooth(Loco(tb:end), 10, 3, 1), 'Color', [0,153,76]/255, 'LineWidth', 1);
+plot([0,0], [0.28,0.48], 'k-', 'LineWidth',2)
 annotation('textbox', [0.02 0.13 0.1 0.1], 'String', 'Loco', ...
            'FontSize', 15, 'EdgeColor', 'none');
 xlim([xl1, size(dff_rz(bsh,tb:end),2)])
@@ -379,12 +379,12 @@ set(gca, 'LineWidth', 1, 'FontSize', 15, 'Box', 'off', 'TickDir', 'out')
 subplot(sbp_no,1,sbplt3);hold on;axis off
 plot(fastsmooth(Whisk(tb:end),10,3,1), 'Color', [255,163,26]/255, 'LineWidth',1)
 plot([0,0], [0,.1]+0.15, 'k-', 'LineWidth',2)
-annotation('textbox', [0.001 0.06 0.1 0.1], 'String', 'Whisk', ...
+annotation('textbox', [0.001 0.06 0.1 0.1], 'String', 'WMI', ...
            'FontSize', 15, 'EdgeColor', 'none');
 xlim([xl1, size(dff_rz(bsh,tb:end),2)])
 ylim([0 0.4])
 xlabel('Time (s)')
-annotation('line', [0.8 0.85], [0.12 0.12], 'LineWidth', 3);
+annotation('line', [0.8 0.85], [0.12 0.12], 'LineWidth', 2);
 annotation('textbox', [0.79, 0.08, 0.09, 0.04], 'String', '20 s', ...
            'EdgeColor', 'none', 'FontSize', 12);
 

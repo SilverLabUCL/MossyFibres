@@ -16,9 +16,13 @@ if ~exist(folderPath, 'dir')
 end
 
 %% plot CC
-cc_MF_all = corr(dff_rz', 'rows', 'complete');
-cc_MF_stat = corr(dff_rz(:, L_state==0)', 'rows', 'complete');
-cc_MF_run = corr(dff_rz(:, L_state==1)', 'rows', 'complete');
+
+
+dff_s = dff_rz(:,1:37000);
+L_state_s  = L_state (1:37000);
+cc_MF_all = corr(dff_s', 'rows', 'complete');
+cc_MF_stat = corr(dff_s(:, L_state_s==0)', 'rows', 'complete');
+cc_MF_run = corr(dff_s(:, L_state_s==1)', 'rows', 'complete');
 
 for i = 1:3
     if i == 1
@@ -118,7 +122,7 @@ fullFilePathPDF = fullfile(folderPath, [fileName, '.pdf']);
 exportgraphics(gcf, fullFilePathPDF, 'ContentType', 'vector');
 
 %% -- 2a. Heat Map of Activity
-ccs = corr(spd_r', dff_r', 'rows', 'complete');
+ccs = corr(spd_r', dff_rz', 'rows', 'complete');
 [a, b] = sort(ccs);
 
 plot_heatMap = 1;
@@ -134,7 +138,7 @@ if plot_heatMap
     Ntot = Nmf;
     dt = 10;
     
-    xlm = [5000, 130 * 1e3 / dt];
+    xlm = [1000, 375 * 1e3 / dt];
     
     figure('Position', [360, 20, 480, 700]);
     sbplt1 = 1:8;
@@ -175,7 +179,7 @@ if plot_heatMap
     pos = get(gca, 'Position');
     pos(1) = 0.15; pos(3) = 0.75;
     pos(2) = 0.26; pos(4) = 0.7;
-    set(gca, 'Position', pos, 'LineWidth', 1, 'FontSize', 17, 'XColor', [0.6, 0.6, 0.6], 'YDir', 'normal', 'TickDir', 'out');
+    set(gca, 'Position', pos, 'LineWidth', 1, 'FontSize', 15, 'XColor', [0.6, 0.6, 0.6], 'YDir', 'normal', 'TickDir', 'out');
     
     subplot(sbp_no, 1, sbplt3); 
     hold on;
@@ -187,7 +191,7 @@ if plot_heatMap
     
     for i = 1:length(AS_start)
         patch([time(AS_start(i)), time(AS_end(i)), time(AS_end(i)), time(AS_start(i))], ...
-              [-0.05, -0.05, 0.35, 0.35], ...
+              [-0.05, -0.05, 0.3, 0.3], ...
               [255, 231, 255] / 255, 'EdgeColor', 'none');
     end
     
@@ -197,15 +201,16 @@ if plot_heatMap
     
     for i = 1:length(QW_start)
         patch([time(QW_start(i)), time(QW_end(i)), time(QW_end(i)), time(QW_start(i))], ...
-              [-0.05, -0.05, 0.35, 0.35], ...
+              [-0.05, -0.05, 0.3, 0.3], ...
               [192, 255, 255] / 255, 'EdgeColor', 'none');
     end
     
     wsk_r = MI_whisker_r;
     plot(time, wsk_r, 'LineWidth', 1, 'Color', [255, 163, 26] / 255);
-    ylabel({'Whisk'});
+    ylabel({'WMI'});
     set(ylb, 'Units', 'Normalized', 'Position', [-0.1, 0.5, 0]);
     yticks([0, 0.3]);
+    ylim([0 0.3])
     
     pos = get(gca, 'Position');
     pos(1) = 0.15; pos(3) = 0.75;
@@ -232,8 +237,8 @@ if plot_heatMap
               [192, 255, 255] / 255, 'EdgeColor', 'none');
     end
     
-    plot(time, rescale(dis_R2), 'Color', [173, 210, 157] / 255, 'LineWidth', 1);
-    ylabel({'Loco'});
+    plot(time, rescale(dis_R2), 'Color', [0, 153, 76] / 255, 'LineWidth', 1);
+    ylabel({'RFL'});
     yticks([0, 0.8]);
     set(ylb, 'Units', 'Normalized', 'Position', [-0.1, 0.5, 0]);
     
